@@ -23,4 +23,4 @@ python src/track.py
 - `results/tracked_output.mp4` — video with tracked objects and IDs
 
 ## Author
-Hessam Kaveh — Research Fellow, Italian Institute of Technology
+Hessam Kaveh - Research Fellow, Italian Institute of Technology
