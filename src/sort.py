@@ -4,7 +4,7 @@ from filterpy.kalman import KalmanFilter
 
 
 class KalmanTracker:
-    """Kalman Filter برای tracking یک شی"""
+    """Kalman filter for tracking a single object"""
     def __init__(self, bbox):
         self.kf = KalmanFilter(dim_x=7, dim_z=4)
         self.kf.F = np.array([
