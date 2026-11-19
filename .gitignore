@@ -4,3 +4,8 @@ data/
 venv/
 .env
 *.mp4
+*.pt
+cache/
+runs/
+weights/
+logs/
