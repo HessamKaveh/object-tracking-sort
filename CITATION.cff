@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "Multi-Object Tracking on MOT17: SORT / ByteTrack-style association with YOLO11"
+authors:
+  - family-names: Kaveh
+    given-names: Hessam
+    affiliation: "Istituto Italiano di Tecnologia (IIT)"
+repository-code: "https://github.com/HessamKaveh/object-tracking-sort"
+license: MIT
+version: 1.0.0
+date-released: 2026-11-23

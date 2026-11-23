@@ -9,7 +9,6 @@ import argparse
 import os
 import pickle
 
-import numpy as np
 from ultralytics import YOLO
 
 import mot

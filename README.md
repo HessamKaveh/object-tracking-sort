@@ -1,13 +1,15 @@
 # Multi-Object Tracking on MOT17: SORT / ByteTrack-style association with YOLO11
 
+[![CI](https://github.com/HessamKaveh/object-tracking-sort/actions/workflows/ci.yml/badge.svg)](https://github.com/HessamKaveh/object-tracking-sort/actions/workflows/ci.yml) ![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg) ![PyTorch](https://img.shields.io/badge/PyTorch-2.x-ee4c2c.svg?logo=pytorch&logoColor=white) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Tracking-by-detection on the real **MOT17** pedestrian benchmark. The project includes:
 - a from-scratch **SORT** tracker (Kalman filter + Hungarian matching on IoU, Bewley et al. 2016);
 - an optional **BYTE** second association stage (Zhang et al., ECCV 2022), which also matches low-confidence detections;
 - three detectors evaluated with the same tracker: MOT17's public Faster R-CNN detections, YOLO11s with COCO weights, and **YOLO11s fine-tuned on MOT17**.
 
-<p align="center"><img src="results/demo_MOT17-09.gif" width="75%"></p>
+<p align="center"><img src="results/hero_MOT17-03.gif" width="80%"></p>
 
-*MOT17-09 (val half), fine-tuned YOLO11s + SORT. Box colour / number = track identity.*
+*MOT17-03 from the MOT17 **test** set (never used for training or tuning; first 7 s of the MOTChallenge preview video; [CC BY-NC-SA 3.0](https://motchallenge.net/data/MOT17/), so this GIF is shared under the same licence), tracked with the fine-tuned YOLO11s + SORT/BYTE via `src/track.py`. Box colour / number = track identity.*
 
 ## Results: MOT17 val-half (7 sequences)
 
@@ -38,6 +40,10 @@ Tracking-by-detection on the real **MOT17** pedestrian benchmark. The project in
 | MOT17-13 | bus-mounted camera, fast motion | 46.7 | 53.2 | 34 |
 
 The hardest sequences are MOT17-02, with heavy occlusion and many small distant people, and MOT17-13, where fast camera motion breaks the constant-velocity Kalman model.
+
+<p align="center"><img src="results/demo_MOT17-09.gif" width="65%"></p>
+
+*MOT17-09 (val half), fine-tuned YOLO11s + SORT. Box colour / number = track identity.*
 
 ## Protocol
 

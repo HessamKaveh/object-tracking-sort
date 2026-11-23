@@ -8,7 +8,6 @@ import colorsys
 import os
 
 import cv2
-import numpy as np
 from ultralytics import YOLO
 
 from sort import Tracker

@@ -9,3 +9,5 @@ cache/
 runs/
 weights/
 logs/
+.pytest_cache/
+.ruff_cache/
