@@ -98,3 +98,56 @@ def test_mot_half_split_and_writer(tmp_path, monkeypatch):
     out = tmp_path / "res" / "x.txt"
     mot.write_mot(str(out), [(3, 7, 10.0, 20.0, 40.0, 100.0, 0.876)])
     assert out.read_text() == "3,7,10.00,20.00,30.00,80.00,0.876,-1,-1,-1\n"
+
+
+def test_giou_diou_rank_disjoint_boxes():
+    from sort import diou_matrix, giou_matrix
+    a = np.array([[0, 0, 10, 10]], float)
+    b = np.array([[0, 0, 10, 10], [20, 0, 30, 10], [60, 0, 70, 10]], float)
+    g, d = giou_matrix(a, b)[0], diou_matrix(a, b)[0]
+    np.testing.assert_allclose([g[0], d[0]], [1.0, 1.0], atol=1e-6)
+    assert iou_matrix(a, b)[0, 1] == iou_matrix(a, b)[0, 2] == 0     # IoU cannot tell them apart ...
+    assert g[0] > g[1] > g[2] and d[0] > d[1] > d[2]                 # ... GIoU / DIoU still rank them
+    np.testing.assert_allclose(g[1], 0 - (300 - 200) / 300, atol=1e-6)
+    np.testing.assert_allclose(d[1], 0 - 400 / (30 ** 2 + 10 ** 2), atol=1e-6)
+
+
+def test_similarity_option_associates_disjoint_boxes():
+    preds = np.array([[0, 0, 10, 20]], float)
+    dets = np.array([[12, 0, 22, 20]], float)                         # moved by more than its width
+    assert associate(dets, preds, 0.3)[0] == []
+    assert associate(dets, preds, -0.3, sim="giou")[0] == [(0, 0)]
+
+
+def test_camera_motion_warp_moves_state_and_scales_area():
+    trk = KalmanBoxTrack(np.array([10.0, 20.0, 30.0, 60.0]), 0.9, tid=1)
+    trk.x[4:6] = [1.0, 0.0]
+    A = np.array([[2.0, 0.0, 5.0], [0.0, 2.0, -3.0]])                  # zoom x2 and shift
+    trk.warp(A)
+    np.testing.assert_allclose(trk.box, [25.0, 37.0, 65.0, 117.0], atol=1e-6)
+    np.testing.assert_allclose(trk.x[4:6], [2.0, 0.0])
+    assert np.all(np.linalg.eigvalsh(trk.P) > 0)
+
+
+def test_tracker_with_cmc_keeps_identity_under_camera_pan():
+    """A static person seen by a panning camera: without CMC the box jumps out of the IoU gate."""
+    def run(use_warp):
+        t, ids = Tracker(min_hits=1), []
+        for k in range(6):
+            box = np.array([[100.0 - 40 * k, 50.0, 130.0 - 40 * k, 130.0]])   # camera pans 40 px/frame
+            out = t.update(box, [0.9], warp=np.array([[1, 0, -40.0], [0, 1, 0]]) if use_warp and k else None)
+            ids += [int(out[0, 4])] if len(out) else []
+        return ids
+    assert len(set(run(False))) > 1
+    assert set(run(True)) == {1}
+
+
+def test_cmc_estimate_recovers_translation():
+    cv2 = pytest.importorskip("cv2")
+    import cmc
+    rng = np.random.default_rng(0)
+    img = cv2.GaussianBlur((rng.random((240, 320)) * 255).astype(np.uint8), (5, 5), 0)
+    M = np.array([[1, 0, 6.0], [0, 1, -4.0]])
+    moved = cv2.warpAffine(img, M, (320, 240))
+    A = cmc.estimate(img, moved, scale=1.0)
+    np.testing.assert_allclose(A, M, atol=0.3)

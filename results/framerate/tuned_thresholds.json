@@ -1,0 +1,244 @@
+{
+  "selected_on": "MOT17 train half, public FRCNN, mean IDF1 over 10/6/3/2 Hz",
+  "thresholds": {
+    "iou": 0.05,
+    "iou_byte": 0.5,
+    "giou": -0.3,
+    "giou_byte": 0.2,
+    "diou": 0.1,
+    "diou_byte": 0.3
+  },
+  "grid": [
+    {
+      "variant": "+ time-aware + low IoU",
+      "thr": 0.05,
+      "byte_thr": 0.2,
+      "mean_IDF1": 51.7145923942125,
+      "mean_MOTA": 44.14385031327783
+    },
+    {
+      "variant": "+ time-aware + low IoU",
+      "thr": 0.05,
+      "byte_thr": 0.3,
+      "mean_IDF1": 51.75559185827741,
+      "mean_MOTA": 44.20993906102481
+    },
+    {
+      "variant": "+ time-aware + low IoU",
+      "thr": 0.05,
+      "byte_thr": 0.5,
+      "mean_IDF1": 51.83600999005808,
+      "mean_MOTA": 44.325379795725695
+    },
+    {
+      "variant": "+ time-aware + low IoU",
+      "thr": 0.1,
+      "byte_thr": 0.2,
+      "mean_IDF1": 51.60297316107457,
+      "mean_MOTA": 44.13140502961119
+    },
+    {
+      "variant": "+ time-aware + low IoU",
+      "thr": 0.1,
+      "byte_thr": 0.3,
+      "mean_IDF1": 51.64480254218605,
+      "mean_MOTA": 44.22624667410522
+    },
+    {
+      "variant": "+ time-aware + low IoU",
+      "thr": 0.1,
+      "byte_thr": 0.5,
+      "mean_IDF1": 51.70413049617013,
+      "mean_MOTA": 44.317655136898125
+    },
+    {
+      "variant": "+ time-aware + low IoU",
+      "thr": 0.2,
+      "byte_thr": 0.2,
+      "mean_IDF1": 51.171784476878,
+      "mean_MOTA": 43.76834606471547
+    },
+    {
+      "variant": "+ time-aware + low IoU",
+      "thr": 0.2,
+      "byte_thr": 0.3,
+      "mean_IDF1": 51.24130185054835,
+      "mean_MOTA": 43.89537378765772
+    },
+    {
+      "variant": "+ time-aware + low IoU",
+      "thr": 0.2,
+      "byte_thr": 0.5,
+      "mean_IDF1": 51.28475569930804,
+      "mean_MOTA": 44.03098446485281
+    },
+    {
+      "variant": "+ time-aware + GIoU",
+      "thr": -0.5,
+      "byte_thr": -0.2,
+      "mean_IDF1": 50.46922611474852,
+      "mean_MOTA": 42.49463565359196
+    },
+    {
+      "variant": "+ time-aware + GIoU",
+      "thr": -0.5,
+      "byte_thr": 0.0,
+      "mean_IDF1": 50.51095689035572,
+      "mean_MOTA": 42.582610934683714
+    },
+    {
+      "variant": "+ time-aware + GIoU",
+      "thr": -0.5,
+      "byte_thr": 0.2,
+      "mean_IDF1": 50.50264666060607,
+      "mean_MOTA": 42.620375933396275
+    },
+    {
+      "variant": "+ time-aware + GIoU",
+      "thr": -0.3,
+      "byte_thr": -0.2,
+      "mean_IDF1": 51.2506641090852,
+      "mean_MOTA": 43.26753068406145
+    },
+    {
+      "variant": "+ time-aware + GIoU",
+      "thr": -0.3,
+      "byte_thr": 0.0,
+      "mean_IDF1": 51.273843435154745,
+      "mean_MOTA": 43.38511715732555
+    },
+    {
+      "variant": "+ time-aware + GIoU",
+      "thr": -0.3,
+      "byte_thr": 0.2,
+      "mean_IDF1": 51.33123528927693,
+      "mean_MOTA": 43.44562698480817
+    },
+    {
+      "variant": "+ time-aware + GIoU",
+      "thr": -0.1,
+      "byte_thr": -0.2,
+      "mean_IDF1": 50.96396883801274,
+      "mean_MOTA": 43.5172946528195
+    },
+    {
+      "variant": "+ time-aware + GIoU",
+      "thr": -0.1,
+      "byte_thr": 0.0,
+      "mean_IDF1": 51.11140714578648,
+      "mean_MOTA": 43.68208737447429
+    },
+    {
+      "variant": "+ time-aware + GIoU",
+      "thr": -0.1,
+      "byte_thr": 0.2,
+      "mean_IDF1": 51.19095072139645,
+      "mean_MOTA": 43.8490258346923
+    },
+    {
+      "variant": "+ time-aware + GIoU",
+      "thr": 0.1,
+      "byte_thr": -0.2,
+      "mean_IDF1": 50.79916044288087,
+      "mean_MOTA": 43.37095528280834
+    },
+    {
+      "variant": "+ time-aware + GIoU",
+      "thr": 0.1,
+      "byte_thr": 0.0,
+      "mean_IDF1": 50.954483880378206,
+      "mean_MOTA": 43.54518925414128
+    },
+    {
+      "variant": "+ time-aware + GIoU",
+      "thr": 0.1,
+      "byte_thr": 0.2,
+      "mean_IDF1": 51.12204173692907,
+      "mean_MOTA": 43.76577117843962
+    },
+    {
+      "variant": "+ time-aware + DIoU",
+      "thr": -0.3,
+      "byte_thr": -0.1,
+      "mean_IDF1": 50.33739815588077,
+      "mean_MOTA": 42.09080765599519
+    },
+    {
+      "variant": "+ time-aware + DIoU",
+      "thr": -0.3,
+      "byte_thr": 0.1,
+      "mean_IDF1": 50.492198592805664,
+      "mean_MOTA": 42.21869367436271
+    },
+    {
+      "variant": "+ time-aware + DIoU",
+      "thr": -0.3,
+      "byte_thr": 0.3,
+      "mean_IDF1": 50.587879850936766,
+      "mean_MOTA": 42.30237747832804
+    },
+    {
+      "variant": "+ time-aware + DIoU",
+      "thr": -0.2,
+      "byte_thr": -0.1,
+      "mean_IDF1": 50.9871932129032,
+      "mean_MOTA": 43.00832546562527
+    },
+    {
+      "variant": "+ time-aware + DIoU",
+      "thr": -0.2,
+      "byte_thr": 0.1,
+      "mean_IDF1": 51.15993866520925,
+      "mean_MOTA": 43.16882671015364
+    },
+    {
+      "variant": "+ time-aware + DIoU",
+      "thr": -0.2,
+      "byte_thr": 0.3,
+      "mean_IDF1": 51.369846521368466,
+      "mean_MOTA": 43.301433353360224
+    },
+    {
+      "variant": "+ time-aware + DIoU",
+      "thr": -0.1,
+      "byte_thr": -0.1,
+      "mean_IDF1": 51.15300222563475,
+      "mean_MOTA": 43.67779589734786
+    },
+    {
+      "variant": "+ time-aware + DIoU",
+      "thr": -0.1,
+      "byte_thr": 0.1,
+      "mean_IDF1": 51.32988805342177,
+      "mean_MOTA": 43.834434812462455
+    },
+    {
+      "variant": "+ time-aware + DIoU",
+      "thr": -0.1,
+      "byte_thr": 0.3,
+      "mean_IDF1": 51.509941102409385,
+      "mean_MOTA": 44.00266071581838
+    },
+    {
+      "variant": "+ time-aware + DIoU",
+      "thr": 0.1,
+      "byte_thr": -0.1,
+      "mean_IDF1": 51.32667227075804,
+      "mean_MOTA": 43.696678396704144
+    },
+    {
+      "variant": "+ time-aware + DIoU",
+      "thr": 0.1,
+      "byte_thr": 0.1,
+      "mean_IDF1": 51.547551704613745,
+      "mean_MOTA": 43.9666123079564
+    },
+    {
+      "variant": "+ time-aware + DIoU",
+      "thr": 0.1,
+      "byte_thr": 0.3,
+      "mean_IDF1": 51.61604003330385,
+      "mean_MOTA": 44.16917002832375
+    }
+  ]
+}
