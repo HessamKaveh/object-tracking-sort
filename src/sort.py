@@ -77,6 +77,13 @@ class KalmanBoxTrack:
         self.P = np.diag([10.0, 10.0, 10.0, 10.0, 1e4, 1e4, 1e4])
         self.id, self.score = tid, score
         self.hits, self.hit_streak, self.age, self.time_since_update = 1, 1, 0, 0
+        self.feat = None
+
+    def update_feat(self, f, alpha):
+        """Exponential moving average of L2-normalised appearance embeddings."""
+        f = np.asarray(f, np.float32)
+        self.feat = f if self.feat is None else alpha * self.feat + (1 - alpha) * f
+        self.feat = self.feat / (np.linalg.norm(self.feat) + 1e-12)
 
     def predict(self):
         if self.x[2] + self.x[6] <= 0:
@@ -129,25 +136,58 @@ def associate(dets, preds, iou_thr, sim="iou"):
     return matches, [i for i in range(len(dets)) if i not in md], [j for j in range(len(preds)) if j not in mt]
 
 
+def fused_cost(dets, preds, det_feats, trk_feats, app_thr, gate=1.0):
+    """BoT-SORT-style fusion: cost = min(1 - IoU, cosine distance), where the appearance term only counts if
+    it is below app_thr and the detection centre lies within gate x (predicted box height) of the prediction.
+    The motion gate stays loose on purpose: appearance is meant to bridge large jumps between updates."""
+    c = 1 - iou_matrix(dets, preds)
+    if len(dets) == 0 or len(preds) == 0:
+        return c
+    app = 1 - det_feats @ trk_feats.T
+    du = (dets[:, None, 0] + dets[:, None, 2] - preds[None, :, 0] - preds[None, :, 2]) / 2
+    dv = (dets[:, None, 1] + dets[:, None, 3] - preds[None, :, 1] - preds[None, :, 3]) / 2
+    h = np.maximum(preds[None, :, 3] - preds[None, :, 1], 1.0)
+    app[(app > app_thr) | (np.hypot(du, dv) > gate * h)] = 1.0
+    return np.minimum(c, app)
+
+
+def match_cost(cost, max_cost):
+    """Hungarian matching on a cost matrix; pairs above max_cost are rejected."""
+    n, m = cost.shape
+    if n == 0 or m == 0:
+        return [], list(range(n)), list(range(m))
+    r, c = linear_sum_assignment(cost)
+    matches = [(i, j) for i, j in zip(r, c) if cost[i, j] <= max_cost]
+    md, mt = {i for i, _ in matches}, {j for _, j in matches}
+    return matches, [i for i in range(n) if i not in md], [j for j in range(m) if j not in mt]
+
+
 class Tracker:
     """SORT tracker. With byte=True, low-score detections are used in a second association
     round to recover occluded tracks (BYTE), but they never start new tracks.
 
     sim selects the association similarity of the first round ('iou' as in SORT, or 'giou' / 'diou',
     which keep ranking candidate pairs when the predicted and detected boxes no longer overlap, e.g. at a
-    low processing frame rate); byte_thr is the threshold of the second round."""
+    low processing frame rate); byte_thr is the threshold of the second round.
+
+    app_thr enables appearance: confident detections passed with `feats` (L2-normalised embeddings) are
+    associated on min(1 - IoU, cosine distance) (see fused_cost); each track keeps an exponential moving
+    average of its embeddings (momentum app_alpha). The BYTE round stays motion-only, as in BoT-SORT."""
 
     def __init__(self, max_age=30, min_hits=3, iou_thr=0.3, det_thr=0.5, low_thr=0.1,
-                 byte=False, new_track_thr=None, sim="iou", byte_thr=0.5):
+                 byte=False, new_track_thr=None, sim="iou", byte_thr=0.5,
+                 app_thr=None, app_gate=1.0, app_alpha=0.9):
         self.max_age, self.min_hits, self.iou_thr = max_age, min_hits, iou_thr
+        self.app_thr, self.app_gate, self.app_alpha = app_thr, app_gate, app_alpha
         self.sim, self.byte_thr = sim, byte_thr
         self.det_thr, self.low_thr, self.byte = det_thr, low_thr, byte
         self.new_track_thr = det_thr if new_track_thr is None else new_track_thr
         self.tracks, self.frame, self.next_id = [], 0, 1
 
-    def update(self, boxes, scores, warp=None):
+    def update(self, boxes, scores, warp=None, feats=None):
         """boxes (N,4) xyxy, scores (N,). warp: optional 2x3 camera-motion transform from the previous
-        processed frame to this one. Returns array of [x1, y1, x2, y2, id, score]."""
+        processed frame to this one. feats: optional (N, D) embeddings (only rows of confident detections
+        are used). Returns array of [x1, y1, x2, y2, id, score]."""
         self.frame += 1
         if warp is not None:
             for t in self.tracks:
@@ -162,11 +202,20 @@ class Tracker:
         low = (scores >= self.low_thr) & ~high if self.byte else np.zeros_like(high)
         hb, hs = boxes[high], scores[high]
         lb, ls = boxes[low], scores[low]
+        use_app = self.app_thr is not None and feats is not None
+        hf = np.asarray(feats, np.float32)[high] if use_app else None
 
         # round 1: confident detections vs all tracks
-        m1, ud, ut = associate(hb, preds, self.iou_thr, self.sim)
+        if use_app:
+            tf = np.array([t.feat if t.feat is not None else np.zeros(hf.shape[1], np.float32)
+                           for t in self.tracks]).reshape(-1, hf.shape[1])
+            m1, ud, ut = match_cost(fused_cost(hb, preds, hf, tf, self.app_thr, self.app_gate), 1 - self.iou_thr)
+        else:
+            m1, ud, ut = associate(hb, preds, self.iou_thr, self.sim)
         for i, j in m1:
             self.tracks[j].update(hb[i], hs[i])
+            if use_app:
+                self.tracks[j].update_feat(hf[i], self.app_alpha)
 
         # round 2 (BYTE): low-score detections vs still-unmatched tracks
         if self.byte and len(ut) and len(lb):
@@ -178,6 +227,8 @@ class Tracker:
         for i in ud:
             if hs[i] >= self.new_track_thr:
                 self.tracks.append(KalmanBoxTrack(hb[i], hs[i], self.next_id)); self.next_id += 1
+                if use_app:
+                    self.tracks[-1].update_feat(hf[i], 0.0)
 
         out = []
         for t in self.tracks:

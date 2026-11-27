@@ -6,7 +6,8 @@ Tracking-by-detection on the real **MOT17** pedestrian benchmark, plus a robotic
 - a from-scratch **SORT** tracker (Kalman filter + Hungarian matching on IoU, Bewley et al. 2016);
 - an optional **BYTE** second association stage (Zhang et al., ECCV 2022), which also matches low-confidence detections;
 - three detectors evaluated with the same tracker: MOT17's public Faster R-CNN detections, YOLO11s with COCO weights, and **YOLO11s fine-tuned on MOT17**;
-- a **processing-rate stress test** (30 → 2 Hz) with a detector-free diagnostic, an oracle-detector control, and a fix (**time-aware life cycle + camera-motion compensation**) that keeps IDF1 at or above the 30 Hz baseline down to 6 Hz.
+- a **processing-rate stress test** (30 → 2 Hz) with a detector-free diagnostic, an oracle-detector control, and a fix (**time-aware life cycle + camera-motion compensation**) that keeps IDF1 at or above the 30 Hz baseline down to 6 Hz;
+- a follow-up on **appearance vs motion** at low rates: a MOT17 ReID network trained with a leakage-free cross-fold split, against zero-shot ImageNet and DINOv2 features ([jump](#follow-up-does-appearance-rescue-a-slow-tracker)).
 
 <p align="center"><img src="results/hero_MOT17-03.gif" width="80%"></p>
 
@@ -70,7 +71,7 @@ On a robot the person detector rarely runs at camera rate. It shares a GPU with 
 - **The bottleneck is not the IoU gate.** The obvious fix, a similarity that still ranks boxes that no longer overlap (low-IoU threshold, GIoU, DIoU; thresholds chosen on the *train* half), moves IDF1 by only −3 to +2.5 points. With **perfect detections**, ID switches at 3 Hz still hit 15 % of boxes, about the share that a *stationary* predictor cannot link in (a). The motion model is the problem.
 - **It is the camera that moves, not the people.** Split by camera (d): on the 3 static-camera sequences, stock SORT holds IDF1 ≈ 66 down to 6 Hz. On the 4 moving-camera sequences (handheld, vehicle-mounted) it falls from 57.0 at 30 Hz to 41.6 at 6 Hz and 28.3 at 3 Hz. Between two processed frames, ego-motion shifts every box together, and a per-person constant-velocity Kalman filter cannot represent that. A robot-mounted camera is exactly this case.
 - **Camera-motion compensation fixes most of it, with no learning and no tuning.** A global similarity transform between processed frames (Lucas–Kanade on background corners, people masked out, RANSAC; `src/cmc.py`) is applied to every Kalman state before prediction. On moving-camera sequences, IDF1 at 6 Hz goes from 41.6 to **66.3**. Overall, the tracker at **6 Hz (67.0 IDF1) beats stock SORT at 30 Hz (63.3)**, and at 3 Hz it keeps 62.6. With an oracle detector, IDF1 stays ≥ 97 down to 6 Hz. In practice, a robot can run this detector 5× less often and still keep identities as well as stock SORT does at full rate.
-- **Where it still fails:** below ~3 Hz, people in crowds turn and cross between updates. GIoU on top of CMC halves ID switches (oracle IDF1 at 3 Hz 88 → 90), but with a real detector its looser gate also links false positives (−2.7 IDF1), so it is off by default. An appearance model is the next step.
+- **Where it still fails:** below ~3 Hz, people in crowds turn and cross between updates. GIoU on top of CMC halves ID switches (oracle IDF1 at 3 Hz 88 → 90), but with a real detector its looser gate also links false positives (−2.7 IDF1), so it is off by default. Appearance is tested in the [follow-up](#follow-up-does-appearance-rescue-a-slow-tracker).
 
 Same trends with the public FRCNN detections (stock 44.9 → CMC 54.7 IDF1 at 3 Hz); all numbers are in `results/framerate/sweep_val_half.json`, the train-half threshold search is in `results/framerate/tuned_thresholds.json`, and the GT diagnostic is in `results/framerate/gt_ceiling.json`.
 
@@ -81,6 +82,60 @@ python src/framerate_study.py tune                       # thresholds on the tra
 python src/framerate_study.py sweep --dets yolo11s_mot17 public_frcnn oracle_gt
 python src/framerate_study.py plot
 python src/track.py --source robot_cam.mp4 --weights runs/mot17_yolo11s/weights/best.pt --stride 10 --cmc
+```
+
+## Follow-up: does appearance rescue a slow tracker?
+
+Below ~3 Hz, people turn and cross between updates, so the motion cue weakens. Appearance does not depend on the update rate, which makes it the obvious candidate to fill the gap. The question is how much of it is needed: is a zero-shot foundation model good enough, or does it take a ReID network trained on pedestrians?
+
+**Embedders** (all L2-normalised, same tracker, BoT-SORT-style fusion `min(1 − IoU, cosine distance)` with a loose motion gate of one body height; `src/reid.py`, `src/appearance_study.py`):
+- **ImageNet ResNet-18**, zero-shot;
+- **DINOv2 ViT-S/14**, zero-shot (a self-supervised foundation model);
+- **MOT17 ReID**: ResNet-18 with BNNeck, cross-entropy + batch-hard triplet, 4k steps. The two halves of a MOT17 sequence show the *same people*, so a ReID net trained on train halves would have seen every val identity. Instead it is trained **cross-fold by sequence**: the model trained on {10, 11, 13} embeds {02, 04, 05, 09}, and vice versa. No sequence is embedded by a network that saw it.
+- **Threshold:** each embedder's appearance threshold is set on the **train half**, as the cosine distance that only 1 % of *nearby different people* fall under. At that operating point, the same person 1 s later is accepted 48 % of the time with MOT17 ReID, 35 % with ImageNet and 31 % with DINOv2.
+
+<p align="center"><img src="results/appearance/appearance_vs_motion.png" width="100%"></p>
+
+**(a) Which cue identifies people between updates?** (val-half ground truth, rank-1 among everyone in the earlier frame)
+
+| Cue | 30 Hz | 6 Hz | 3 Hz | 2 Hz |
+|---|---|---|---|---|
+| Constant-velocity IoU | 99.9 | 98.3 | 92.5 | 86.9 |
+| … + camera-motion compensation | 99.9 | 99.0 | **97.0** | 94.3 |
+| ImageNet ResNet-18 | 98.2 | 89.3 | 80.0 | 74.6 |
+| DINOv2 ViT-S/14 | 97.2 | 86.8 | 77.5 | 71.9 |
+| MOT17 ReID (cross-fold) | 99.3 | 94.5 | 88.9 | 85.2 |
+| CMC motion + ReID (sum of similarities) | 99.9 | 99.2 | **97.6** | **95.8** |
+
+**(b) Tracking IDF1** (fine-tuned YOLO11s, MOT17 val-half):
+
+| Tracker (all time-aware + BYTE) | 30 Hz | 10 Hz | 6 Hz | 3 Hz | 2 Hz |
+|---|---|---|---|---|---|
+| Stock SORT + BYTE (reference) | 63.3 | 61.7 | 59.5 | 53.8 | 50.3 |
+| CMC, motion only | 65.8 | 67.3 | 67.0 | 62.6 | 58.0 |
+| CMC + ImageNet | 64.6 | 64.5 | 63.4 | 60.5 | 57.7 |
+| CMC + DINOv2 | 63.8 | 65.5 | 65.3 | 62.1 | 58.2 |
+| **CMC + MOT17 ReID** | 66.0 | **68.7** | **67.8** | **64.4** | **61.6** |
+| MOT17 ReID, *no* CMC | 65.8 | 66.6 | 64.7 | 60.7 | 57.9 |
+
+**Findings:**
+- **Appearance does not depend on frame rate, but it still gets worse at low rates.** With a 0.3 s or longer gap, people turn, change scale and become occluded. Every embedder loses 14–25 points of rank-1 from 30 to 2 Hz, and compensated motion stays the stronger cue at every rate.
+- **Occlusion is what limits appearance.** At 3 Hz, a quarter of all MOT17 pairs are < 25 % visible. There, ReID ranks the right person first only 69 % of the time, against 98 % for fully visible people; boxes under 80 px reach 77 % (`results/appearance/appearance_by_visibility_3hz.json`).
+- **A zero-shot foundation model is not a free ReID.** DINOv2 and ImageNet features *lower* IDF1 compared with motion alone (−1.7 to −3.6 at 6 Hz with YOLO11s), and DINOv2 is the weakest embedder in (a). They describe pose, background and clothes colour of whole scenes, not the identity of a pedestrian among similar-looking ones.
+- **Pedestrian ReID helps where motion runs out.** It gains +0.2 to +1.4 IDF1 at 6–30 Hz, **+1.8 at 3 Hz and +3.6 at 2 Hz**, and +6.0 on moving-camera sequences at 2 Hz. The two cues are complementary only at the margin: at 3 Hz, ReID rescues 1.9 % of the pairs that motion gets wrong.
+- **Appearance cannot replace ego-motion compensation.** Without CMC, ReID on moving-camera sequences at 3 Hz reaches 50.6 IDF1, against 59.4 with CMC alone and 63.0 with both. For a robot running a slow loop, the order of priorities is: life cycle in seconds, then CMC, then a pedestrian-trained ReID. Combined, they lift IDF1 at 3 Hz from 53.8 to **64.4**, above stock SORT at 30 Hz.
+- A longer 3 s memory for re-identification changes little (±0.1 at 3–2 Hz; +1.4 at 30 Hz). On MOT17, most identity losses happen during an occlusion, not after a long gap.
+
+Same ranking with the public FRCNN detections and with the oracle detector; all numbers are in `results/appearance/`. The ReID checkpoints are attached to the [v1.2.0 release](https://github.com/HessamKaveh/object-tracking-sort/releases/tag/v1.2.0).
+
+```bash
+python src/reid.py crops && python src/reid.py train --fold A && python src/reid.py train --fold B
+python src/reid.py embed --dets yolo11s_mot17 public_frcnn oracle_gt
+python src/appearance_study.py embed_train && python src/appearance_study.py calibrate
+python src/appearance_study.py cues && python src/appearance_study.py why
+python src/appearance_study.py sweep && python src/appearance_study.py plot
+python src/track.py --source robot_cam.mp4 --weights runs/mot17_yolo11s/weights/best.pt --stride 10 --cmc \
+                    --reid weights/reid_r18_embeds_foldA.pt
 ```
 
 ## Protocol
@@ -95,6 +150,7 @@ python src/track.py --source robot_cam.mp4 --weights runs/mot17_yolo11s/weights/
 |---|---|
 | State | Kalman filter on [u, v, s, r, u̇, v̇, ṡ], constant velocity; the original SORT noise settings |
 | Association | Hungarian matching on IoU (≥ 0.3) between Kalman predictions and detections with score ≥ 0.5 (GIoU / DIoU optional) |
+| Appearance | optional: min(1 − IoU, cosine distance) fusion, EMA track embedding (`Tracker.update(..., feats=F)`) |
 | Camera motion | optional: 2×3 similarity transform per update applied to state and covariance (`Tracker.update(..., warp=A)`) |
 | BYTE stage | still-unmatched tracks are matched to the low-score detections (0.1–0.5); a new track starts only from a detection with score ≥ 0.6 |
 | Life cycle | track confirmed after 3 hits, deleted after 30 missed frames |
@@ -132,8 +188,11 @@ src/run_benchmark.py      full detector x tracker table
 src/track.py              visual demo (MP4 / GIF); --stride / --cmc for a slow loop on a moving camera
 src/cmc.py                camera-motion compensation (sparse optical flow + RANSAC similarity)
 src/framerate_study.py    processing-rate stress test: GT diagnostic, train-half tuning, sweep, figure
+src/reid.py               embedders: ImageNet ResNet-18, DINOv2, cross-fold MOT17 ReID (train / embed)
+src/appearance_study.py   appearance vs motion: threshold calibration, cue diagnostic, occlusion breakdown, sweep
 results/                  metrics tables, per-sequence results, MOT-format track files, demo GIF
 results/framerate/        stress-test tables and figure
+results/appearance/       appearance study tables and figure
 ```
 
 ## Author

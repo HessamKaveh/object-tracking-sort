@@ -5,7 +5,8 @@
     python src/track.py --source robot_cam.mp4 --weights ... --stride 10 --cmc   # 3 Hz on a 30 fps camera
 
 --stride k runs detection + tracking on every k-th frame (a slow perception loop); --cmc adds camera-motion
-compensation and the life-cycle parameters are then kept in seconds (see src/framerate_study.py).
+compensation and the life-cycle parameters are then kept in seconds (see src/framerate_study.py);
+--reid adds appearance matching with a ReID checkpoint from src/reid.py (see src/appearance_study.py).
 """
 import argparse
 import colorsys
@@ -50,12 +51,20 @@ def main():
     ap.add_argument("--max_frames", type=int, default=10**9)
     ap.add_argument("--stride", type=int, default=1, help="process every k-th frame")
     ap.add_argument("--cmc", action="store_true", help="camera-motion compensation (moving camera)")
+    ap.add_argument("--reid", default=None, help="ReID checkpoint, e.g. weights/reid_r18_embeds_foldA.pt")
+    ap.add_argument("--app_thr", type=float, default=0.324, help="cosine-distance threshold (calibrated)")
     args = ap.parse_args()
 
     model = YOLO(args.weights)
     s = args.stride
     trk = Tracker(max_age=max(1, -(-30 // s)), min_hits=max(1, -(-3 // s)), iou_thr=0.3, det_thr=0.5,
-                  low_thr=0.1, byte=not args.no_byte, new_track_thr=0.6)
+                  low_thr=0.1, byte=not args.no_byte, new_track_thr=0.6,
+                  app_thr=args.app_thr if args.reid else None)
+    embedder = None
+    if args.reid:
+        import numpy as np
+        import reid
+        embedder = reid.Embedder("reid", path=args.reid)
     writer, gif_frames, prev = None, [], None
     for k, frame in enumerate(frames_from(args)):
         if k >= args.max_frames:
@@ -69,7 +78,13 @@ def main():
             if prev is not None:
                 warp = cmc.estimate(prev[0], frame, prev[1])
             prev = (frame.copy(), boxes)
-        tracks = trk.update(boxes, scores, warp=warp)
+        feats = None
+        if embedder is not None:
+            keep = scores >= 0.5
+            feats = np.zeros((len(scores), 512), np.float32)
+            if keep.any():
+                feats[keep] = embedder(np.stack([reid.crop(frame, b) for b in boxes[keep]]))
+        tracks = trk.update(boxes, scores, warp=warp, feats=feats)
         for x1, y1, x2, y2, tid, _ in tracks:
             c = color(int(tid))
             cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), c, 2)

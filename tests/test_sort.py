@@ -151,3 +151,28 @@ def test_cmc_estimate_recovers_translation():
     moved = cv2.warpAffine(img, M, (320, 240))
     A = cmc.estimate(img, moved, scale=1.0)
     np.testing.assert_allclose(A, M, atol=0.3)
+
+
+def test_fused_cost_uses_appearance_only_inside_gate():
+    from sort import fused_cost
+    preds = np.array([[0, 0, 20, 40], [200, 0, 220, 40]], float)
+    dets = np.array([[25, 0, 45, 40]], float)                          # no overlap, 1.25 widths away
+    f = np.array([[1.0, 0.0]], np.float32)
+    tf = np.array([[1.0, 0.0], [1.0, 0.0]], np.float32)                # both tracks look identical
+    c = fused_cost(dets, preds, f, tf, app_thr=0.2, gate=1.0)
+    assert c[0, 0] == pytest.approx(0.0)                               # near + same appearance
+    assert c[0, 1] == pytest.approx(1.0)                               # same appearance but far: gated
+    c = fused_cost(dets, preds, -f, tf, app_thr=0.2, gate=1.0)
+    assert c[0, 0] == pytest.approx(1.0)                               # near but different appearance
+
+
+def test_appearance_resolves_crossing_people():
+    """Two people swap places between updates (low rate): IoU links them wrongly, appearance does not."""
+    def run(use_app):
+        t = Tracker(min_hits=1, app_thr=0.3 if use_app else None, app_gate=3.0)
+        fa, fb = np.array([1.0, 0.0]), np.array([0.0, 1.0])
+        t.update(np.array([[0, 0, 20, 40], [24, 0, 44, 40]], float), [0.9, 0.9], feats=np.stack([fa, fb]))
+        out = t.update(np.array([[24, 0, 44, 40], [0, 0, 20, 40]], float), [0.9, 0.9], feats=np.stack([fa, fb]))
+        return {tuple(np.round(r[:2])): int(r[4]) for r in out}
+    assert run(False)[(24.0, 0.0)] == 2                                # motion keeps positions -> swap
+    assert run(True)[(24.0, 0.0)] == 1                                 # appearance follows the person

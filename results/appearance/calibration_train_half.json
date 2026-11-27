@@ -1,0 +1,23 @@
+{
+  "imagenet": {
+    "threshold": 0.17724232375621796,
+    "same_person_1s_accept_%": 34.56102091915031,
+    "nearby_other_accept_%": 1.0,
+    "n_same": 49524,
+    "n_nearby_other": 227610
+  },
+  "dinov2": {
+    "threshold": 0.1905464082956314,
+    "same_person_1s_accept_%": 30.58719004926904,
+    "nearby_other_accept_%": 1.0,
+    "n_same": 49524,
+    "n_nearby_other": 227610
+  },
+  "reid": {
+    "threshold": 0.32397130131721497,
+    "same_person_1s_accept_%": 48.0251999030773,
+    "nearby_other_accept_%": 1.0,
+    "n_same": 49524,
+    "n_nearby_other": 227610
+  }
+}
